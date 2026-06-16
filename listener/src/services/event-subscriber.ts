@@ -6,6 +6,7 @@ import {
   matchesEventFilter,
   validateEventPayload,
 } from '../utils/event-utils';
+import { DiscordNotificationService } from './discord-notification';
 
 export class EventSubscriber {
   private config: Config;
@@ -13,10 +14,14 @@ export class EventSubscriber {
   private isRunning: boolean = false;
   private reconnectAttempts: number = 0;
   private lastCursors: Map<string, string> = new Map();
+  private discordService: DiscordNotificationService | null = null;
 
   constructor(config: Config) {
     this.config = config;
     this.server = new StellarSDK.rpc.Server(config.stellarRpcUrl);
+    if (config.discord) {
+      this.discordService = new DiscordNotificationService(config.discord);
+    }
   }
 
   async start(): Promise<void> {
@@ -64,7 +69,7 @@ export class EventSubscriber {
         }
 
         for (const event of processableEvents) {
-          this.processEvent(event, contractConfig);
+          await this.processEvent(event, contractConfig);
         }
 
         if (response.cursor) {
@@ -137,10 +142,10 @@ export class EventSubscriber {
     return await this.server.getEvents(request);
   }
 
-  private processEvent(
+  private async processEvent(
     event: StellarSDK.rpc.Api.EventResponse,
     contractConfig: ContractConfig
-  ): void {
+  ): Promise<void> {
     logger.info('Processing event', {
       contractAddress: contractConfig.address,
       eventName: getEventName(event.topic),
@@ -149,6 +154,18 @@ export class EventSubscriber {
       topic: event.topic,
       value: event.value,
     });
+
+    if (this.discordService) {
+      const success = await this.discordService.sendEventNotification(
+        event,
+        contractConfig
+      );
+      if (!success) {
+        logger.warn('Failed to send Discord notification, event will still be processed', {
+          eventId: event.id,
+        });
+      }
+    }
   }
 
   private async handleReconnection(): Promise<void> {

@@ -27,6 +27,14 @@ jest.mock('../utils/logger', () => ({
   },
 }));
 
+const mockDiscordService = {
+  sendEventNotification: jest.fn().mockResolvedValue(true),
+};
+
+jest.mock('./discord-notification', () => ({
+  DiscordNotificationService: jest.fn().mockImplementation(() => mockDiscordService),
+}));
+
 const mockLogger = logger as jest.Mocked<typeof logger>;
 
 const contractConfig: ContractConfig = {
@@ -469,6 +477,64 @@ describe('EventSubscriber', () => {
       await subscriber.stop();
 
       expect((subscriber as any).reconnectAttempts).toBe(0);
+    });
+  });
+
+  describe('Discord integration', () => {
+    it('sends Discord notification when event is processed', async () => {
+      mockDiscordService.sendEventNotification.mockResolvedValueOnce(true);
+      
+      const discordConfig = {
+        webhookUrl: 'https://discord.com/api/webhooks/test/webhook',
+        webhookId: 'test',
+      };
+      const configWithDiscord: Config = {
+        ...testConfig,
+        discord: discordConfig,
+      };
+
+      mockGetEvents.mockResolvedValue({
+        events: [createMockEvent({ id: 'event-1' })],
+        cursor: 'cursor-1',
+      });
+
+      const subscriber = new EventSubscriber(configWithDiscord);
+      await (subscriber as any).checkForEvents();
+
+      expect(mockDiscordService.sendEventNotification).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+
+    it('logs warning when Discord notification fails', async () => {
+      const { DiscordNotificationService } = jest.requireMock('./discord-notification');
+      const mockSendEventNotification = jest.fn().mockResolvedValue(false);
+      DiscordNotificationService.mockImplementation(() => ({
+        sendEventNotification: mockSendEventNotification,
+      }));
+
+      const discordConfig = {
+        webhookUrl: 'https://discord.com/api/webhooks/test/webhook',
+        webhookId: 'test',
+      };
+      const configWithDiscord: Config = {
+        ...testConfig,
+        discord: discordConfig,
+      };
+
+      mockGetEvents.mockResolvedValue({
+        events: [createMockEvent({ id: 'event-1' })],
+        cursor: 'cursor-1',
+      });
+
+      const subscriber = new EventSubscriber(configWithDiscord);
+      await (subscriber as any).checkForEvents();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to send Discord notification, event will still be processed',
+        expect.objectContaining({ eventId: 'event-1' })
+      );
     });
   });
 });

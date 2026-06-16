@@ -3,6 +3,11 @@ export interface ContractConfig {
   events: string[];
 }
 
+export interface DiscordConfig {
+  webhookUrl: string;
+  webhookId: string;
+}
+
 export interface Config {
   stellarNetwork: string;
   stellarRpcUrl: string;
@@ -10,4 +15,5 @@ export interface Config {
   pollIntervalMs: number;
   maxReconnectAttempts: number;
   reconnectDelayMs: number;
+  discord?: DiscordConfig;
 }
