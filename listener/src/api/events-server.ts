@@ -1,5 +1,7 @@
 import http from 'http';
 import { eventRegistry } from '../store/event-registry';
+import { preferenceStore } from '../store/preference-store';
+import { PreferencesUpdateInput } from '../types/preferences';
 import logger from '../utils/logger';
 
 export interface EventsServerOptions {
@@ -12,7 +14,7 @@ export function createEventsServer(options: EventsServerOptions): http.Server {
 
   return http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
@@ -21,8 +23,10 @@ export function createEventsServer(options: EventsServerOptions): http.Server {
       return;
     }
 
-    if (req.method === 'GET' && req.url?.startsWith('/api/events')) {
-      const url = new URL(req.url, 'http://localhost');
+    const url = new URL(req.url ?? '/', 'http://localhost');
+
+    // GET /api/events
+    if (req.method === 'GET' && url.pathname.startsWith('/api/events')) {
       const limitParam = url.searchParams.get('limit');
       const limit = limitParam ? parseInt(limitParam, 10) : undefined;
       const events =
@@ -31,12 +35,42 @@ export function createEventsServer(options: EventsServerOptions): http.Server {
           : eventRegistry.getEvents();
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          count: eventRegistry.count(),
-          events,
-        })
-      );
+      res.end(JSON.stringify({ count: eventRegistry.count(), events }));
+      return;
+    }
+
+    // GET /api/preferences/:userId
+    const getPrefsMatch = url.pathname.match(/^\/api\/preferences\/([^/]+)$/);
+    if (req.method === 'GET' && getPrefsMatch) {
+      const userId = decodeURIComponent(getPrefsMatch[1]);
+      const prefs = preferenceStore.get(userId);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(prefs));
+      return;
+    }
+
+    // PUT /api/preferences/:userId
+    const putPrefsMatch = url.pathname.match(/^\/api\/preferences\/([^/]+)$/);
+    if (req.method === 'PUT' && putPrefsMatch) {
+      const userId = decodeURIComponent(putPrefsMatch[1]);
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const input: PreferencesUpdateInput = JSON.parse(body);
+          if (!input || typeof input.categories !== 'object') {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid body: expected { categories: { [key]: boolean } }' }));
+            return;
+          }
+          const updated = preferenceStore.update(userId, input);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(updated));
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        }
+      });
       return;
     }
 

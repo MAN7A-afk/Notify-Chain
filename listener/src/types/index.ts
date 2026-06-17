@@ -1,6 +1,8 @@
 export interface ContractConfig {
   address: string;
   events: string[];
+  /** Optional user ID for per-user notification preference gating */
+  userId?: string;
 }
 
 export interface DiscordConfig {
