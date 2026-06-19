@@ -15,6 +15,13 @@ export interface RetryQueueConfig {
   maxRetries?: number;
 }
 
+export interface RateLimitConfig {
+  enabled: boolean;
+  windowMs: number;
+  maxRequests: number;
+  clientOverrides: Record<string, { maxRequests: number; windowMs?: number }>;
+}
+
 export interface Config {
   stellarNetwork: string;
   stellarRpcUrl: string;
@@ -28,6 +35,7 @@ export interface Config {
   retryQueue?: RetryQueueConfig;
   scheduler?: SchedulerConfig;
   databasePath?: string;
+  rateLimit?: RateLimitConfig;
 }
 
 export interface SchedulerConfig {
