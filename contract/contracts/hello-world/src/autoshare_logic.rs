@@ -1,7 +1,8 @@
 use crate::base::errors::Error;
 use crate::base::events::{
     AdminTransferred, AuthorizationFailure, AutoshareCreated, AutoshareUpdated, ContractPaused,
-    ContractUnpaused, GroupActivated, GroupDeactivated, NotificationCategory, Withdrawal,
+    ContractUnpaused, GroupActivated, GroupDeactivated, NotificationCategory, NotificationPriority,
+    Withdrawal,
 };
 use crate::base::types::{AutoShareDetails, GroupMember, PaymentHistory};
 use soroban_sdk::{contracttype, token, Address, BytesN, Env, String, Vec};
@@ -109,6 +110,7 @@ pub fn create_autoshare(
     AutoshareCreated {
         creator: creator.clone(),
         category: NotificationCategory::Group,
+        priority: NotificationPriority::Medium,
         id: id.clone(),
     }
     .publish(&env);
@@ -259,6 +261,7 @@ fn publish_authorization_failure(env: &Env, caller: &Address, action: &str) {
     AuthorizationFailure {
         caller: caller.clone(),
         category: NotificationCategory::Admin,
+        priority: NotificationPriority::Critical,
         action: String::from_str(env, action),
     }
     .publish(env);
@@ -295,6 +298,7 @@ pub fn transfer_admin(env: Env, current_admin: Address, new_admin: Address) -> R
     AdminTransferred {
         old_admin: current_admin,
         category: NotificationCategory::Admin,
+        priority: NotificationPriority::Critical,
         new_admin,
     }
     .publish(&env);
@@ -319,6 +323,7 @@ pub fn pause(env: Env, admin: Address) -> Result<(), Error> {
     env.storage().persistent().set(&pause_key, &true);
     ContractPaused {
         category: NotificationCategory::Admin,
+        priority: NotificationPriority::High,
     }
     .publish(&env);
     Ok(())
@@ -338,6 +343,7 @@ pub fn unpause(env: Env, admin: Address) -> Result<(), Error> {
     env.storage().persistent().set(&pause_key, &false);
     ContractUnpaused {
         category: NotificationCategory::Admin,
+        priority: NotificationPriority::High,
     }
     .publish(&env);
     Ok(())
@@ -675,6 +681,7 @@ pub fn update_members(
     AutoshareUpdated {
         updater: caller,
         category: NotificationCategory::Group,
+        priority: NotificationPriority::Medium,
         id: id.clone(),
     }
     .publish(&env);
@@ -711,6 +718,7 @@ pub fn deactivate_group(env: Env, id: BytesN<32>, caller: Address) -> Result<(),
     GroupDeactivated {
         creator: caller,
         category: NotificationCategory::Group,
+        priority: NotificationPriority::Low,
         id: id.clone(),
     }
     .publish(&env);
@@ -747,6 +755,7 @@ pub fn activate_group(env: Env, id: BytesN<32>, caller: Address) -> Result<(), E
     GroupActivated {
         creator: caller,
         category: NotificationCategory::Group,
+        priority: NotificationPriority::Low,
         id: id.clone(),
     }
     .publish(&env);
@@ -795,6 +804,7 @@ pub fn withdraw(
         token,
         recipient,
         category: NotificationCategory::Financial,
+        priority: NotificationPriority::High,
         amount,
     }
     .publish(&env);

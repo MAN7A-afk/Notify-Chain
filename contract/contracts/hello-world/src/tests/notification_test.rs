@@ -7,7 +7,7 @@
 //! - the change is backward compatible: the event name remains the first topic
 //!   and the previously defined topics/data are unchanged.
 
-use crate::base::events::NotificationCategory;
+use crate::base::events::{NotificationCategory, NotificationPriority};
 use crate::test_utils::{create_test_group, setup_test_env};
 use crate::AutoShareContractClient;
 
@@ -34,20 +34,43 @@ fn topics_of(env: &soroban_sdk::Env, event_name: &str) -> Option<Vec<Val>> {
     found
 }
 
-/// Extracts the notification category (the trailing topic) for the latest event
-/// named `event_name`.
+/// Extracts the notification category for the latest event named `event_name`.
+///
+/// Events now carry **two** trailing topics: the category (the previously-trailing
+/// topic) followed by the priority (added with the `NotificationPriority` change).
+/// This helper reads the *second-to-last* topic, i.e. the category, so existing
+/// subscribers keyed off category keep working unchanged.
 fn category_of(env: &soroban_sdk::Env, event_name: &str) -> Option<NotificationCategory> {
     let topics = topics_of(env, event_name)?;
+    let n = topics.len();
+    if n < 2 {
+        return None;
+    }
+    let category_topic = topics.get(n - 2)?;
+    NotificationCategory::try_from_val(env, &category_topic).ok()
+}
+
+/// Extracts the notification priority (the trailing topic) for the latest event
+/// named `event_name`.
+fn priority_of(env: &soroban_sdk::Env, event_name: &str) -> Option<NotificationPriority> {
+    let topics = topics_of(env, event_name)?;
     let last = topics.last()?;
-    NotificationCategory::try_from_val(env, &last).ok()
+    NotificationPriority::try_from_val(env, &last).ok()
 }
 
 /// Returns the category of the most recently emitted event — i.e. the metadata a
 /// streaming consumer would read off the event as it arrives.
+///
+/// Categories are now the **second-to-last** topic (priority is the trailing
+/// topic), so we read from the back accordingly.
 fn latest_category(env: &soroban_sdk::Env) -> Option<NotificationCategory> {
     let (_addr, topics, _data) = env.events().all().last()?;
-    let last = topics.last()?;
-    NotificationCategory::try_from_val(env, &last).ok()
+    let n = topics.len();
+    if n < 2 {
+        return None;
+    }
+    let category_topic = topics.get(n - 2)?;
+    NotificationCategory::try_from_val(env, &category_topic).ok()
 }
 
 #[test]
@@ -68,6 +91,10 @@ fn test_created_event_has_group_category() {
     assert_eq!(
         category_of(&test_env.env, "autoshare_created"),
         Some(NotificationCategory::Group)
+    );
+    assert_eq!(
+        priority_of(&test_env.env, "autoshare_created"),
+        Some(NotificationPriority::Medium)
     );
 }
 
@@ -98,6 +125,10 @@ fn test_updated_event_has_group_category() {
         category_of(&test_env.env, "autoshare_updated"),
         Some(NotificationCategory::Group)
     );
+    assert_eq!(
+        priority_of(&test_env.env, "autoshare_updated"),
+        Some(NotificationPriority::Medium)
+    );
 }
 
 #[test]
@@ -121,11 +152,19 @@ fn test_deactivate_and_activate_events_have_group_category() {
         category_of(&test_env.env, "group_deactivated"),
         Some(NotificationCategory::Group)
     );
+    assert_eq!(
+        priority_of(&test_env.env, "group_deactivated"),
+        Some(NotificationPriority::Low)
+    );
 
     client.activate_group(&id, &creator);
     assert_eq!(
         category_of(&test_env.env, "group_activated"),
         Some(NotificationCategory::Group)
+    );
+    assert_eq!(
+        priority_of(&test_env.env, "group_activated"),
+        Some(NotificationPriority::Low)
     );
 }
 
@@ -139,11 +178,19 @@ fn test_pause_and_unpause_events_have_admin_category() {
         category_of(&test_env.env, "contract_paused"),
         Some(NotificationCategory::Admin)
     );
+    assert_eq!(
+        priority_of(&test_env.env, "contract_paused"),
+        Some(NotificationPriority::High)
+    );
 
     client.unpause(&test_env.admin);
     assert_eq!(
         category_of(&test_env.env, "contract_unpaused"),
         Some(NotificationCategory::Admin)
+    );
+    assert_eq!(
+        priority_of(&test_env.env, "contract_unpaused"),
+        Some(NotificationPriority::High)
     );
 }
 
@@ -157,6 +204,10 @@ fn test_admin_transfer_event_has_admin_category() {
     assert_eq!(
         category_of(&test_env.env, "admin_transferred"),
         Some(NotificationCategory::Admin)
+    );
+    assert_eq!(
+        priority_of(&test_env.env, "admin_transferred"),
+        Some(NotificationPriority::Critical)
     );
 }
 
@@ -182,6 +233,10 @@ fn test_withdrawal_event_has_financial_category() {
     assert_eq!(
         category_of(&test_env.env, "withdrawal"),
         Some(NotificationCategory::Financial)
+    );
+    assert_eq!(
+        priority_of(&test_env.env, "withdrawal"),
+        Some(NotificationPriority::High)
     );
 }
 
@@ -268,8 +323,9 @@ fn test_created_event_backward_compatible_shape() {
     );
 
     let topics = topics_of(&test_env.env, "autoshare_created").expect("event emitted");
-    // [0] event name, [1] creator (unchanged), [2] category (new trailing topic)
-    assert_eq!(topics.len(), 3);
+    // [0] event name, [1] creator (unchanged), [2] category (now second-to-last),
+    // [3] priority (new trailing topic).
+    assert_eq!(topics.len(), 4);
 
     let name = Symbol::try_from_val(&test_env.env, &topics.get(0).unwrap()).unwrap();
     assert_eq!(name, Symbol::new(&test_env.env, "autoshare_created"));
@@ -280,6 +336,11 @@ fn test_created_event_backward_compatible_shape() {
     let category =
         NotificationCategory::try_from_val(&test_env.env, &topics.get(2).unwrap()).unwrap();
     assert_eq!(category, NotificationCategory::Group);
+
+    // The newly added trailing topic is the priority.
+    let priority =
+        NotificationPriority::try_from_val(&test_env.env, &topics.get(3).unwrap()).unwrap();
+    assert_eq!(priority, NotificationPriority::Medium);
 
     // Data payload is still the group id.
     let data = test_env
