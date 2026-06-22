@@ -23,7 +23,7 @@ pub enum NotificationCategory {
     Admin = 1,
     /// Movement of funds: withdrawals.
     Financial = 2,
-    /// Scheduled notification operations: cancellation.
+    /// Scheduled notification operations: scheduling, expiry, cancellation.
     Notification = 3,
 }
 
@@ -183,4 +183,37 @@ pub struct ScheduledNotificationCancelled {
     #[topic]
     pub priority: NotificationPriority,
     pub notification_id: BytesN<32>,
+}
+
+/// Emitted when a notification is scheduled on-chain with a bounded lifetime.
+///
+/// Off-chain consumers can use this to track the notification's existence and
+/// know when to expect an accompanying [`NotificationExpired`] event.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone)]
+pub struct NotificationScheduled {
+    #[topic]
+    pub creator: Address,
+    #[topic]
+    pub category: NotificationCategory,
+    #[topic]
+    pub priority: NotificationPriority,
+    pub notification_id: BytesN<32>,
+}
+
+/// Emitted when a scheduled notification's lifetime elapses and it is expired.
+///
+/// The `notification_id` is published as an indexed topic so consumers can
+/// subscribe to the expiry of a specific notification; the `expires_at`
+/// timestamp at which it became invalid is carried as the event data.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone)]
+pub struct NotificationExpired {
+    #[topic]
+    pub notification_id: BytesN<32>,
+    #[topic]
+    pub category: NotificationCategory,
+    #[topic]
+    pub priority: NotificationPriority,
+    pub expires_at: u64,
 }
