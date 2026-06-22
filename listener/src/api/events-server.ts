@@ -461,8 +461,6 @@ export function createEventsServer(options: EventsServerOptions): http.Server {
 
           logger.info('GET /api/notifications/history complete', {
             requestId,
-            correlationId,
-            returned: result.records.length,
             total: result.total,
             durationMs: Date.now() - startTime,
           });
@@ -486,10 +484,7 @@ export function createEventsServer(options: EventsServerOptions): http.Server {
       const userId = decodeURIComponent(getPrefsMatch[1]);
       logger.info('Handling GET /api/preferences/:userId', { requestId, correlationId, userId });
       const prefs = preferenceStore.get(userId);
-      logger.info('GET /api/preferences/:userId complete', { requestId, correlationId, userId, durationMs: Date.now() - startTime });
-      res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(prefs));
-      return;
     }
 
     // PUT /api/preferences/:userId
@@ -520,7 +515,6 @@ export function createEventsServer(options: EventsServerOptions): http.Server {
       });
       return;
     }
-
     logger.warn('Unhandled request', { requestId, correlationId, method: req.method, url: req.url });
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
