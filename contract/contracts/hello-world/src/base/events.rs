@@ -1,4 +1,4 @@
-use soroban_sdk::{contractevent, contracttype, Address, BytesN, String};
+use soroban_sdk::{contractevent, contracttype, Address, BytesN, String, Vec};
 
 /// High-level notification category attached to every emitted event.
 ///
@@ -216,4 +216,63 @@ pub struct NotificationExpired {
     #[topic]
     pub priority: NotificationPriority,
     pub expires_at: u64,
+}
+
+// ============================================================================
+// Audit Logging
+// ============================================================================
+
+/// Discriminator for each stage in the notification lifecycle that the audit
+/// log tracks.  Values are fixed-width integers so they serialise compactly on
+/// chain and can be matched exactly by off-chain indexers.
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AuditAction {
+    /// A notification was created (scheduled on-chain).
+    Created = 0,
+    /// A delivery attempt was made for a notification.
+    DeliveryAttempt = 1,
+    /// A delivery attempt failed.
+    DeliveryFailed = 2,
+    /// The recipient acknowledged the notification.
+    Acknowledged = 3,
+    /// The notification was cancelled before expiry.
+    Cancelled = 4,
+    /// The notification expired naturally.
+    Expired = 5,
+}
+
+/// Emitted when a new audit record is appended to the on-chain log.
+///
+/// Off-chain indexers should key off `(notification_id, action)` to track the
+/// full lifecycle of each notification.
+#[contractevent]
+#[derive(Clone)]
+pub struct AuditRecordAppended {
+    #[topic]
+    pub notification_id: BytesN<32>,
+    #[topic]
+    pub action: AuditAction,
+    #[topic]
+    pub category: NotificationCategory,
+    pub seq: u64,
+    pub actor: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a batch of notifications is created in a single transaction.
+///
+/// Each per-notification event is still emitted individually; this summary
+/// event additionally carries the count so consumers can verify completeness.
+#[contractevent]
+#[derive(Clone)]
+pub struct BatchNotificationsCreated {
+    #[topic]
+    pub creator: Address,
+    #[topic]
+    pub category: NotificationCategory,
+    #[topic]
+    pub priority: NotificationPriority,
+    pub count: u32,
+    pub ids: Vec<BytesN<32>>,
 }

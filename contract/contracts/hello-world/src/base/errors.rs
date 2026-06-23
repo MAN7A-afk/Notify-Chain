@@ -56,4 +56,6 @@ pub enum Error {
     /// Triggered when attempting to expire a notification whose lifetime has not
     /// yet elapsed.
     NotificationNotExpired = 25,
+    /// Triggered when a batch operation exceeds the maximum allowed size.
+    BatchTooLarge = 26,
 }
