@@ -5,6 +5,7 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 pub mod base {
     pub mod errors;
     pub mod events;
+    pub mod preferences;
     pub mod types;
 }
 
@@ -12,8 +13,9 @@ pub mod interfaces {
     pub mod autoshare;
 }
 
-// 2. Declare the main logic file where the functions are implemented
+// 2. Declare the main logic files where the functions are implemented
 mod autoshare_logic;
+mod preferences_logic;
 
 #[cfg(test)]
 pub mod mock_token;
@@ -227,6 +229,76 @@ impl AutoShareContract {
     pub fn reduce_usage(env: Env, id: BytesN<32>) {
         autoshare_logic::reduce_usage(env, id).unwrap();
     }
+
+    // ============================================================================
+    // Recipient Preference Management  (Issue #178)
+    // ============================================================================
+
+    /// Returns the full notification preferences for `recipient`.
+    /// Returns all-enabled defaults if the recipient has never set preferences.
+    pub fn get_preferences(
+        env: Env,
+        recipient: Address,
+    ) -> base::preferences::RecipientPreferences {
+        preferences_logic::get_preferences(env, recipient)
+    }
+
+    /// Atomically replace all channel and category preferences for `recipient`.
+    /// Caller must be `recipient` (auth required).
+    pub fn set_preferences(
+        env: Env,
+        recipient: Address,
+        channels: Vec<base::preferences::ChannelPreference>,
+        categories: Vec<base::preferences::CategoryPreference>,
+    ) {
+        preferences_logic::set_preferences(env, recipient, channels, categories).unwrap();
+    }
+
+    /// Toggle a single delivery channel on or off.
+    /// Caller must be `recipient` (auth required).
+    pub fn set_channel_preference(
+        env: Env,
+        recipient: Address,
+        channel: base::preferences::DeliveryChannel,
+        enabled: bool,
+    ) {
+        preferences_logic::set_channel_preference(env, recipient, channel, enabled).unwrap();
+    }
+
+    /// Toggle a single notification category on or off.
+    /// Caller must be `recipient` (auth required).
+    pub fn set_category_preference(
+        env: Env,
+        recipient: Address,
+        category: base::preferences::NotificationCategory,
+        enabled: bool,
+    ) {
+        preferences_logic::set_category_preference(env, recipient, category, enabled).unwrap();
+    }
+
+    /// Reset all preferences to the all-enabled defaults.
+    /// Caller must be `recipient` (auth required).
+    pub fn reset_preferences(env: Env, recipient: Address) {
+        preferences_logic::reset_preferences(env, recipient).unwrap();
+    }
+
+    /// Returns true if the specified delivery channel is enabled for `recipient`.
+    pub fn is_channel_enabled(
+        env: Env,
+        recipient: Address,
+        channel: base::preferences::DeliveryChannel,
+    ) -> bool {
+        preferences_logic::is_channel_enabled(env, recipient, channel)
+    }
+
+    /// Returns true if the specified notification category is enabled for `recipient`.
+    pub fn is_category_enabled(
+        env: Env,
+        recipient: Address,
+        category: base::preferences::NotificationCategory,
+    ) -> bool {
+        preferences_logic::is_category_enabled(env, recipient, category)
+    }
 }
 
 // 3. Link the tests (Requirement: Unit Tests)
@@ -253,3 +325,7 @@ mod test_utils_test;
 #[cfg(test)]
 #[path = "tests/storage_optimization_test.rs"]
 mod storage_optimization_test;
+
+#[cfg(test)]
+#[path = "tests/preferences_test.rs"]
+mod preferences_test;
