@@ -41,3 +41,33 @@ Reports are generated automatically.
 
 Contributor Guidelines
 git checkout -b test/cross-network-compatibility
+
+
+
+
+---
+
+# Issue #168
+
+Description
+
+Users with large notification histories need an efficient way to locate specific notifications.
+
+Introduce a search experience supporting metadata, sender names, transaction hashes, and notification identifiers.
+
+Tasks
+Create backend search endpoints.
+Add indexed database queries.
+Build frontend search interface.
+Support partial matching.
+Add pagination.
+Display empty-state messaging.
+
+Acceptance Criteria
+Search returns relevant results.
+Response times remain performant.
+Pagination functions correctly.
+Search works across supported notification metadata.
+
+Contributor Guidelines
+git checkout -b feature/notification-search
