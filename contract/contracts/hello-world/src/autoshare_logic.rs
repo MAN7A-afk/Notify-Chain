@@ -1174,6 +1174,7 @@ pub fn batch_schedule_notifications(
     ids: Vec<BytesN<32>>,
     creator: Address,
     ttl_seconds: Vec<u64>,
+    titles: Vec<String>,
 ) -> Result<(), Error> {
     creator.require_auth();
 
@@ -1189,7 +1190,7 @@ pub fn batch_schedule_notifications(
     }
 
     // Lengths must match.
-    if count != ttl_seconds.len() {
+    if count != ttl_seconds.len() || count != titles.len() {
         return Err(Error::InvalidInput);
     }
 
@@ -1209,6 +1210,10 @@ pub fn batch_schedule_notifications(
             return Err(Error::InvalidExpirationDuration);
         }
         let id = ids.get(i).unwrap();
+        let title = titles.get(i).unwrap();
+        if title.is_empty() {
+            return Err(Error::InvalidInput);
+        }
 
         // Check for intra-batch duplicates.
         for seen in seen_in_batch.iter() {
@@ -1232,6 +1237,7 @@ pub fn batch_schedule_notifications(
     for i in 0..count {
         let ttl = ttl_seconds.get(i).unwrap();
         let id = ids.get(i).unwrap();
+        let title = titles.get(i).unwrap();
         let expires_at = created_at + ttl;
 
         let notification = ScheduledNotification {
@@ -1241,6 +1247,7 @@ pub fn batch_schedule_notifications(
             expires_at,
             revoked_by: None,
             revoked_at: None,
+            title,
         };
         let key = DataKey::ScheduledNotification(id.clone());
         env.storage().persistent().set(&key, &notification);

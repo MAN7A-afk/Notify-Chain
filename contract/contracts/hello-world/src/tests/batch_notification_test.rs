@@ -13,9 +13,13 @@ use crate::test_utils::setup_test_env;
 use crate::AutoShareContractClient;
 
 use soroban_sdk::testutils::{Address as _, Events, Ledger};
-use soroban_sdk::{BytesN, Env, Symbol, TryFromVal, Val, Vec};
+use soroban_sdk::{BytesN, Env, String, Symbol, TryFromVal, Val, Vec};
 
 const ONE_HOUR: u64 = 3_600;
+
+fn make_title(env: &Env) -> String {
+    String::from_str(env, "Test Notification")
+}
 
 fn make_id(env: &Env, tag: u8) -> BytesN<32> {
     let mut bytes = [0u8; 32];
@@ -77,12 +81,14 @@ fn test_batch_creates_all_notifications() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     for i in 1u8..=5 {
         ids.push_back(make_id(&test_env.env, i));
         ttls.push_back(ONE_HOUR);
+        titles.push_back(make_title(&test_env.env));
     }
 
-    client.batch_schedule_notifications(&ids, &creator, &ttls);
+    client.batch_schedule_notifications(&ids, &creator, &ttls, &titles);
 
     // Each notification must be stored and not yet expired.
     for i in 1u8..=5 {
@@ -103,12 +109,14 @@ fn test_batch_emits_per_notification_events() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     for i in 10u8..=13 {
         ids.push_back(make_id(&test_env.env, i));
         ttls.push_back(ONE_HOUR);
+        titles.push_back(make_title(&test_env.env));
     }
 
-    client.batch_schedule_notifications(&ids, &creator, &ttls);
+    client.batch_schedule_notifications(&ids, &creator, &ttls, &titles);
 
     // 4 individual NotificationScheduled events must have been emitted.
     assert_eq!(count_events(&test_env.env, "notification_scheduled"), 4);
@@ -122,12 +130,14 @@ fn test_batch_emits_summary_event() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     for i in 20u8..=22 {
         ids.push_back(make_id(&test_env.env, i));
         ttls.push_back(ONE_HOUR * 2);
+        titles.push_back(make_title(&test_env.env));
     }
 
-    client.batch_schedule_notifications(&ids, &creator, &ttls);
+    client.batch_schedule_notifications(&ids, &creator, &ttls, &titles);
 
     // The summary event must exist.
     assert!(
@@ -144,12 +154,14 @@ fn test_batch_summary_event_has_notification_category() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     for i in 30u8..=31 {
         ids.push_back(make_id(&test_env.env, i));
         ttls.push_back(ONE_HOUR);
+        titles.push_back(make_title(&test_env.env));
     }
 
-    client.batch_schedule_notifications(&ids, &creator, &ttls);
+    client.batch_schedule_notifications(&ids, &creator, &ttls, &titles);
 
     let topics = topics_of(&test_env.env, "batch_notifications_created").unwrap();
     // topics: [0] name, [1] creator, [2] category, [3] priority
@@ -172,11 +184,13 @@ fn test_batch_single_notification() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     ids.push_back(make_id(&test_env.env, 40));
     ttls.push_back(ONE_HOUR);
+    titles.push_back(make_title(&test_env.env));
 
     // A batch of one is valid.
-    client.batch_schedule_notifications(&ids, &creator, &ttls);
+    client.batch_schedule_notifications(&ids, &creator, &ttls, &titles);
 
     assert!(client
         .try_get_notification(&make_id(&test_env.env, 40))
@@ -193,12 +207,14 @@ fn test_batch_notifications_expire_correctly() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     for i in 50u8..=52 {
         ids.push_back(make_id(&test_env.env, i));
         ttls.push_back(ONE_HOUR);
+        titles.push_back(make_title(&test_env.env));
     }
 
-    client.batch_schedule_notifications(&ids, &creator, &ttls);
+    client.batch_schedule_notifications(&ids, &creator, &ttls, &titles);
 
     // Not yet expired.
     set_now(&test_env.env, 500 + ONE_HOUR - 1);
@@ -225,8 +241,9 @@ fn test_batch_empty_ids_rejected() {
 
     let ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let ttls: Vec<u64> = Vec::new(&test_env.env);
+    let titles: Vec<String> = Vec::new(&test_env.env);
 
-    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls);
+    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls, &titles);
     assert!(result.is_err(), "empty batch must be rejected");
 }
 
@@ -238,11 +255,13 @@ fn test_batch_mismatched_lengths_rejected() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     ids.push_back(make_id(&test_env.env, 60));
     ids.push_back(make_id(&test_env.env, 61));
     ttls.push_back(ONE_HOUR); // Only 1 ttl for 2 ids.
+    titles.push_back(make_title(&test_env.env));
 
-    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls);
+    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls, &titles);
     assert!(result.is_err(), "mismatched lengths must be rejected");
 }
 
@@ -254,10 +273,12 @@ fn test_batch_zero_ttl_rejected() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     ids.push_back(make_id(&test_env.env, 70));
     ttls.push_back(0); // Zero TTL is invalid.
+    titles.push_back(make_title(&test_env.env));
 
-    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls);
+    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls, &titles);
     assert!(result.is_err(), "zero TTL in batch must be rejected");
 }
 
@@ -271,12 +292,15 @@ fn test_batch_duplicate_id_rejected() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     ids.push_back(dup_id.clone());
     ids.push_back(dup_id.clone()); // Duplicate.
     ttls.push_back(ONE_HOUR);
     ttls.push_back(ONE_HOUR);
+    titles.push_back(make_title(&test_env.env));
+    titles.push_back(make_title(&test_env.env));
 
-    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls);
+    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls, &titles);
     assert!(result.is_err(), "duplicate ids in batch must be rejected");
 }
 
@@ -289,15 +313,17 @@ fn test_batch_id_already_scheduled_rejected() {
     let id = make_id(&test_env.env, 90);
 
     // Schedule the id individually first.
-    client.schedule_notification(&id, &creator, &ONE_HOUR);
+    client.schedule_notification(&id, &creator, &ONE_HOUR, &make_title(&test_env.env));
 
     // Now try to include it in a batch — must be rejected (AlreadyExists).
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     ids.push_back(id);
     ttls.push_back(ONE_HOUR);
+    titles.push_back(make_title(&test_env.env));
 
-    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls);
+    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls, &titles);
     assert!(
         result.is_err(),
         "batch must be rejected when an id is already scheduled"
@@ -315,16 +341,19 @@ fn test_batch_all_or_nothing_on_validation_failure() {
     let bad_id = make_id(&test_env.env, 101);
 
     // Pre-schedule the bad id so it will collide.
-    client.schedule_notification(&bad_id, &creator, &ONE_HOUR);
+    client.schedule_notification(&bad_id, &creator, &ONE_HOUR, &make_title(&test_env.env));
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     ids.push_back(good_id.clone());
     ids.push_back(bad_id.clone()); // Will cause AlreadyExists.
     ttls.push_back(ONE_HOUR);
     ttls.push_back(ONE_HOUR);
+    titles.push_back(make_title(&test_env.env));
+    titles.push_back(make_title(&test_env.env));
 
-    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls);
+    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls, &titles);
     assert!(result.is_err(), "batch must fail");
 
     // The good_id must NOT have been persisted (all-or-nothing).
@@ -343,15 +372,17 @@ fn test_batch_exceeding_max_size_rejected() {
     // MAX_BATCH_SIZE is 50; try 51.
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     for i in 0u8..51 {
         let mut bytes = [0u8; 32];
         bytes[0] = i;
         bytes[1] = 200; // Namespace to avoid collision with other tests.
         ids.push_back(BytesN::from_array(&test_env.env, &bytes));
         ttls.push_back(ONE_HOUR);
+        titles.push_back(make_title(&test_env.env));
     }
 
-    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls);
+    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls, &titles);
     assert!(result.is_err(), "batch exceeding max size must be rejected");
 }
 
@@ -364,16 +395,18 @@ fn test_batch_exactly_max_size_accepted() {
     // MAX_BATCH_SIZE is 50 — exactly 50 entries must succeed.
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     for i in 0u8..50 {
         let mut bytes = [0u8; 32];
         bytes[0] = i;
         bytes[1] = 201; // Namespace to avoid collision with other tests.
         ids.push_back(BytesN::from_array(&test_env.env, &bytes));
         ttls.push_back(ONE_HOUR);
+        titles.push_back(make_title(&test_env.env));
     }
 
     // Must not panic.
-    client.batch_schedule_notifications(&ids, &creator, &ttls);
+    client.batch_schedule_notifications(&ids, &creator, &ttls, &titles);
 
     // Summary event must be present.
     assert!(
@@ -396,10 +429,12 @@ fn test_batch_blocked_when_contract_paused() {
 
     let mut ids: Vec<BytesN<32>> = Vec::new(&test_env.env);
     let mut ttls: Vec<u64> = Vec::new(&test_env.env);
+    let mut titles: Vec<String> = Vec::new(&test_env.env);
     ids.push_back(make_id(&test_env.env, 110));
     ttls.push_back(ONE_HOUR);
+    titles.push_back(make_title(&test_env.env));
 
-    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls);
+    let result = client.try_batch_schedule_notifications(&ids, &creator, &ttls, &titles);
     assert!(
         result.is_err(),
         "batch must be rejected while contract is paused"
