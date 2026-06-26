@@ -272,3 +272,29 @@ CREATE INDEX IF NOT EXISTS idx_idempotency_keys_expires_at
 CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created_at
   ON idempotency_keys(created_at);
 
+-- Backpressure events table for tracking queue saturation and recovery
+CREATE TABLE IF NOT EXISTS backpressure_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  -- Event tracking
+  event_type VARCHAR(20) NOT NULL,            -- ACTIVATED or DEACTIVATED
+  queue_size INTEGER NOT NULL,                -- Queue size when event occurred
+  target_throughput_per_sec INTEGER NOT NULL, -- Target throughput limit during this event
+
+  -- Duration tracking (for deactivation events)
+  duration_ms INTEGER,                        -- How long backpressure was active
+
+  -- Additional metadata
+  reason TEXT,                                -- Optional reason/context for the event
+  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_backpressure_events_type
+  ON backpressure_events(event_type);
+
+CREATE INDEX IF NOT EXISTS idx_backpressure_events_timestamp
+  ON backpressure_events(timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_backpressure_events_type_timestamp
+  ON backpressure_events(event_type, timestamp);
+
