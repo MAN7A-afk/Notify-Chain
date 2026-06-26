@@ -431,4 +431,7 @@ mod tests {
 
     #[path = "../tests/revocation_test.rs"]
     mod revocation_test;
+
+    #[path = "../tests/fuzz_test.rs"]
+    mod fuzz_test;
 }
