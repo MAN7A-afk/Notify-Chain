@@ -141,10 +141,10 @@ describe('Notification workflow with wallet connected', () => {
               contractAddress: 'CTEST',
               eventName: 'task_created',
               type: 'contract',
-              topic: ['task_created'],
+              topic: [],
               value: '',
               ledger: 100,
-              receivedAt: Date.now(),
+              receivedAt: Date.parse('2026-06-24T12:00:00Z'),
             },
           ],
         }),
@@ -191,5 +191,101 @@ describe('Wallet integration report', () => {
     writeReport(results);
     expect(results.every((r) => r.passed)).toBe(true);
     expect(fs.existsSync(REPORT_PATH)).toBe(true);
+  });
+});
+
+// ─── Regression tests for issue #175 ─────────────────────────────────────────
+// Verify that switching wallets updates walletStore address immediately and
+// leaves no stale address behind, which is the precondition that
+// useWalletAccountSync relies on to trigger a feed refresh.
+
+describe('Notification feed clears on wallet switch (issue #175)', () => {
+  it('walletStore address updates immediately when switching to a different wallet', async () => {
+    const { wallet, store, kit } = await load();
+
+    // Connect first wallet
+    kit.__control.authModalImpl = async () => {
+      kit.__emit('WALLET_SELECTED', { id: 'freighter' });
+      kit.__emit('STATE_UPDATED', { address: SUPPORTED_WALLETS[0].address });
+    };
+    await wallet.connectWallet();
+    expect(store.useWalletStore.getState().address).toBe(SUPPORTED_WALLETS[0].address);
+
+    // Switch to second wallet — address in the store must change synchronously
+    kit.__control.authModalImpl = async () => {
+      kit.__emit('WALLET_SELECTED', { id: 'albedo' });
+      kit.__emit('STATE_UPDATED', { address: SUPPORTED_WALLETS[1].address });
+    };
+    await wallet.connectWallet();
+
+    expect(store.useWalletStore.getState().address).toBe(SUPPORTED_WALLETS[1].address);
+    expect(store.useWalletStore.getState().address).not.toBe(SUPPORTED_WALLETS[0].address);
+  });
+
+  it('walletStore address is null after disconnect, clearing any previous account', async () => {
+    const { wallet, store, kit } = await load();
+
+    kit.__control.authModalImpl = async () => {
+      kit.__emit('WALLET_SELECTED', { id: 'freighter' });
+      kit.__emit('STATE_UPDATED', { address: SUPPORTED_WALLETS[0].address });
+    };
+    await wallet.connectWallet();
+    expect(store.useWalletStore.getState().address).toBe(SUPPORTED_WALLETS[0].address);
+
+    kit.__control.disconnectImpl = async () => {
+      kit.__emit('DISCONNECT', {});
+    };
+    await wallet.disconnectWallet();
+
+    expect(store.useWalletStore.getState().address).toBeNull();
+    expect(localStorage.getItem(WALLET_ADDRESS_KEY)).toBeNull();
+  });
+
+  it('no stale address remains in localStorage after switching wallets', async () => {
+    const { wallet, store, kit } = await load();
+
+    kit.__control.authModalImpl = async () => {
+      kit.__emit('WALLET_SELECTED', { id: 'freighter' });
+      kit.__emit('STATE_UPDATED', { address: SUPPORTED_WALLETS[0].address });
+    };
+    await wallet.connectWallet();
+
+    kit.__control.authModalImpl = async () => {
+      kit.__emit('WALLET_SELECTED', { id: 'xbull' });
+      kit.__emit('STATE_UPDATED', { address: SUPPORTED_WALLETS[2].address });
+    };
+    await wallet.connectWallet();
+
+    // localStorage must reflect the new account only
+    expect(localStorage.getItem(WALLET_ADDRESS_KEY)).toBe(SUPPORTED_WALLETS[2].address);
+    expect(localStorage.getItem(WALLET_ADDRESS_KEY)).not.toBe(SUPPORTED_WALLETS[0].address);
+    expect(store.useWalletStore.getState().address).toBe(SUPPORTED_WALLETS[2].address);
+  });
+
+  it('switching wallets across all supported providers leaves only the current address', async () => {
+    for (const [index, provider] of SUPPORTED_WALLETS.entries()) {
+      const { wallet, store, kit } = await load();
+
+      // First connect one of the other wallets
+      const previous = SUPPORTED_WALLETS[(index + 1) % SUPPORTED_WALLETS.length];
+      kit.__control.authModalImpl = async () => {
+        kit.__emit('WALLET_SELECTED', { id: previous.id });
+        kit.__emit('STATE_UPDATED', { address: previous.address });
+      };
+      await wallet.connectWallet();
+
+      // Now switch to the target provider
+      kit.__control.authModalImpl = async () => {
+        kit.__emit('WALLET_SELECTED', { id: provider.id });
+        kit.__emit('STATE_UPDATED', { address: provider.address });
+      };
+      await wallet.connectWallet();
+
+      expect(store.useWalletStore.getState().address).toBe(provider.address);
+      expect(localStorage.getItem(WALLET_ADDRESS_KEY)).toBe(provider.address);
+      expect(localStorage.getItem(WALLET_ID_KEY)).toBe(provider.id);
+
+      localStorage.clear();
+    }
   });
 });

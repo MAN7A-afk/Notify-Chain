@@ -36,7 +36,14 @@ interface EventExplorerCardProps {
   contractStatuses?: ContractStatus[];
 }
 
-export function EventExplorerCard({ event, onCopyContract, isCopied, contractStatuses = [] }: EventExplorerCardProps) {
+export function EventExplorerCard({
+  event,
+  onCopyContract,
+  isCopied,
+  contractStatuses,
+}: EventExplorerCardProps) {
+  const contractStatus = contractStatuses.find((c) => c.address === event.contractAddress);
+  const isPaused = contractStatus?.paused ?? false;
   const label = event.eventName ?? event.type;
   const badgeClass = getEventKindClass(event.type);
   const kindLabel = getEventKindLabel(event.type);
