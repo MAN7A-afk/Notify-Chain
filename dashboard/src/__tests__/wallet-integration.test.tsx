@@ -10,7 +10,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const WALLET_ID_KEY = 'notify-chain:wallet-id';
-const WALLET_ADDRESS_KEY = 'notify-chain:wallet-address';
 const REPORT_PATH = path.join(process.cwd(), 'reports', 'wallet-integration.json');
 
 type KitMock = typeof import('../test/stellarWalletsKitMock');
@@ -138,11 +137,14 @@ describe('Notification workflow with wallet connected', () => {
         json: async () => ({
           events: [
             {
-              id: 'evt-wallet-1',
+              eventId: 'evt-wallet-1',
               contractAddress: 'CTEST',
-              topic: 'task_created',
+              eventName: 'task_created',
+              type: 'contract',
+              topic: [],
+              value: '',
               ledger: 100,
-              timestamp: '2026-06-24T12:00:00Z',
+              receivedAt: Date.parse('2026-06-24T12:00:00Z'),
             },
           ],
         }),
@@ -160,7 +162,7 @@ describe('Notification workflow with wallet connected', () => {
 
     const events = await fetchEvents('http://localhost:8787/api/events');
     expect(events).toHaveLength(1);
-    expect(events[0].id).toBe('evt-wallet-1');
+    expect(events[0].eventId).toBe('evt-wallet-1');
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8787/api/events');
   });
 });
