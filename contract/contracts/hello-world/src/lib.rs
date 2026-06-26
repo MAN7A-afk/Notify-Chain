@@ -55,12 +55,18 @@ impl AutoShareContract {
     }
 
     /// Registers a notification category in the on-chain registry.
-    pub fn register_category(env: Env, admin: Address, category: base::events::NotificationCategory) {
+    pub fn register_category(
+        env: Env,
+        admin: Address,
+        category: base::events::NotificationCategory,
+    ) {
         autoshare_logic::register_category(env, admin, category).unwrap();
     }
 
     /// Returns all registered notification categories.
-    pub fn get_registered_categories(env: Env) -> soroban_sdk::Vec<base::events::NotificationCategory> {
+    pub fn get_registered_categories(
+        env: Env,
+    ) -> soroban_sdk::Vec<base::events::NotificationCategory> {
         autoshare_logic::get_registered_categories(env)
     }
 

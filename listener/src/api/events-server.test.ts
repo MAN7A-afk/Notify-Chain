@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { createEventsServer, checkStellarRpc, checkDiscord } from './events-server';
 import { eventRegistry } from '../store/event-registry';
 import { NotificationAnalyticsAggregator } from '../services/notification-analytics-aggregator';
+import { NotificationMetricsStore } from '../services/notification-metrics-store';
 import { NotificationType } from '../types/scheduled-notification';
 
 const mockGetHealth = jest.fn();
@@ -409,25 +410,25 @@ describe('GET /api/analytics', () => {
   it('returns persisted historical snapshots via /api/analytics/history', async () => {
     const aggregator = new NotificationAnalyticsAggregator();
     aggregator.reset();
-    const metricsStore = {
-      getHistory: jest.fn().mockResolvedValue([
-        {
-          id: 1,
-          capturedAt: '2026-06-26T00:00:00.000Z',
-          snapshot: aggregator.snapshot(),
-        },
-      ]),
-    };
+    const getHistory = jest.fn() as jest.MockedFunction<NotificationMetricsStore['getHistory']>;
+    getHistory.mockResolvedValue([
+      {
+        id: 1,
+        capturedAt: '2026-06-26T00:00:00.000Z',
+        snapshot: aggregator.snapshot(),
+      },
+    ]);
+    const metricsStore = { getHistory } as unknown as NotificationMetricsStore;
 
     server = await startServer({
       ...BASE_OPTIONS,
       analyticsAggregator: aggregator,
-      metricsStore: metricsStore as any,
+      metricsStore,
     });
 
     const res = await request(server, 'GET', '/api/analytics/history?limit=10');
     expect(res.status).toBe(200);
     expect((res.body as any).snapshots).toHaveLength(1);
-    expect(metricsStore.getHistory).toHaveBeenCalledWith(10, undefined);
+    expect(getHistory).toHaveBeenCalledWith(10, undefined);
   });
 });

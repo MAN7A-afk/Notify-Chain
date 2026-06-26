@@ -1,8 +1,8 @@
 use crate::base::errors::Error;
 use crate::base::events::{
-    AdminTransferred, AuthorizationFailure, AutoshareCreated, AutoshareUpdated, ContractPaused,
-    ContractUnpaused, GroupActivated, GroupDeactivated, NotificationCategory, NotificationPriority,
-    ScheduledNotificationCancelled, Withdrawal, CategoryRegistered,
+    AdminTransferred, AuthorizationFailure, AutoshareCreated, AutoshareUpdated, CategoryRegistered,
+    ContractPaused, ContractUnpaused, GroupActivated, GroupDeactivated, NotificationCategory,
+    NotificationPriority, ScheduledNotificationCancelled, Withdrawal,
 };
 use crate::base::types::{AutoShareDetails, GroupMember, PaymentHistory};
 use soroban_sdk::{contracttype, token, Address, BytesN, Env, String, Vec};
@@ -289,7 +289,11 @@ pub fn is_category_registered(env: Env, category: NotificationCategory) -> bool 
     false
 }
 
-pub fn register_category(env: Env, admin: Address, category: NotificationCategory) -> Result<(), Error> {
+pub fn register_category(
+    env: Env,
+    admin: Address,
+    category: NotificationCategory,
+) -> Result<(), Error> {
     admin.require_auth();
     require_admin(&env, &admin)?;
 
