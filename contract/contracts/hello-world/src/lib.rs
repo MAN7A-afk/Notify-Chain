@@ -312,7 +312,6 @@ impl AutoShareContract {
     ) -> bool {
         preferences_logic::is_category_enabled(env, recipient, category)
     }
-}
 
     // ============================================================================
     // Scheduled Notification Management
@@ -387,8 +386,13 @@ impl AutoShareContract {
         caller: Address,
         extension_seconds: u64,
     ) {
-        autoshare_logic::extend_notification_expiry(env, notification_id, caller, extension_seconds)
-            .unwrap();
+        autoshare_logic::extend_notification_expiry(
+            env,
+            notification_id,
+            caller,
+            extension_seconds,
+        )
+        .unwrap();
     }
 }
 
@@ -407,6 +411,8 @@ mod storage_optimization_test;
 #[cfg(test)]
 #[path = "tests/preferences_test.rs"]
 mod preferences_test;
+
+#[cfg(test)]
 mod tests {
     #[path = "../tests/autoshare_test.rs"]
     mod autoshare_test;
