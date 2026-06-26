@@ -9,7 +9,6 @@ import { IndexingHealthPanel } from '../components/IndexingHealthPanel';
 import { useEventFilters, useEventLoadingState, useFilteredEvents } from '../hooks/useEventSelectors';
 import { useEventStore } from '../store/eventStore';
 import { fetchEvents, fetchStatus, type ContractStatus } from '../services/eventsApi';
-import { fetchEvents } from '../services/eventsApi';
 import { resolveIndexingHealthUrl } from '../services/indexingHealthApi';
 import { generateMockEvents } from '../utils/eventData';
 import { restoreWalletSession } from '../services/wallet';
@@ -87,7 +86,6 @@ export function EventExplorerPage() {
 
     loadEvents();
     loadStatus();
-    loadEvents();
 
     return () => {
       cancelled = true;

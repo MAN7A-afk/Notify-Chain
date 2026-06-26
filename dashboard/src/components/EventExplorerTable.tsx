@@ -5,13 +5,10 @@ import { EventExplorerCard } from './EventExplorerCard';
 
 interface EventExplorerTableProps {
   events: BlockchainEvent[];
-  contractStatuses: ContractStatus[];
+  contractStatuses?: ContractStatus[];
 }
 
-export function EventExplorerTable({ events, contractStatuses }: EventExplorerTableProps) {
-}
-
-export function EventExplorerTable({ events }: EventExplorerTableProps) {
+export function EventExplorerTable({ events, contractStatuses = [] }: EventExplorerTableProps) {
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   async function syncCopyText(text: string) {
