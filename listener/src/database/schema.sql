@@ -238,6 +238,63 @@ CREATE TABLE IF NOT EXISTS polling_cursors (
 CREATE INDEX IF NOT EXISTS idx_polling_cursors_contract 
   ON polling_cursors(contract_address);
 
-CREATE INDEX IF NOT EXISTS idx_polling_cursors_updated_at 
+CREATE INDEX IF NOT EXISTS idx_polling_cursors_updated_at
   ON polling_cursors(updated_at);
+
+-- Idempotency keys table for request deduplication
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  -- Key identification
+  idempotency_key TEXT NOT NULL UNIQUE,      -- Client-provided idempotency key
+
+  -- Request and response tracking
+  request_hash TEXT NOT NULL,                -- Hash of request body for validation
+  response_notification_id INTEGER NOT NULL, -- ID of the created notification
+  response_data TEXT NOT NULL,               -- JSON response to return on duplicate
+
+  -- Lifecycle management
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME NOT NULL,              -- When this key should be purged
+
+  -- Status tracking
+  status VARCHAR(20) NOT NULL DEFAULT 'PROCESSED', -- PROCESSED, EXPIRED
+
+  FOREIGN KEY (response_notification_id) REFERENCES scheduled_notifications(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_key
+  ON idempotency_keys(idempotency_key);
+
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_expires_at
+  ON idempotency_keys(expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created_at
+  ON idempotency_keys(created_at);
+
+-- Backpressure events table for tracking queue saturation and recovery
+CREATE TABLE IF NOT EXISTS backpressure_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  -- Event tracking
+  event_type VARCHAR(20) NOT NULL,            -- ACTIVATED or DEACTIVATED
+  queue_size INTEGER NOT NULL,                -- Queue size when event occurred
+  target_throughput_per_sec INTEGER NOT NULL, -- Target throughput limit during this event
+
+  -- Duration tracking (for deactivation events)
+  duration_ms INTEGER,                        -- How long backpressure was active
+
+  -- Additional metadata
+  reason TEXT,                                -- Optional reason/context for the event
+  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_backpressure_events_type
+  ON backpressure_events(event_type);
+
+CREATE INDEX IF NOT EXISTS idx_backpressure_events_timestamp
+  ON backpressure_events(timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_backpressure_events_type_timestamp
+  ON backpressure_events(event_type, timestamp);
 

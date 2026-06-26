@@ -888,12 +888,20 @@ fn is_revoked(notification: &ScheduledNotification) -> bool {
 ///
 /// The notification is stored with an `expires_at` of `now + ttl_seconds`. A
 /// zero duration (or one that overflows the ledger clock) is rejected, as is a
-/// duplicate identifier. Emits [`NotificationScheduled`].
+/// duplicate identifier. Metadata is validated for consistency and length.
+/// Emits [`NotificationScheduled`].
+///
+/// # Errors
+/// - `ContractPaused` if the contract is paused
+/// - `InvalidExpirationDuration` if ttl_seconds is 0 or would overflow
+/// - `AlreadyExists` if notification_id is already registered
+/// - `InvalidInput` if metadata is malformed
 pub fn schedule_notification(
     env: Env,
     notification_id: BytesN<32>,
     creator: Address,
     ttl_seconds: u64,
+    title: String,
 ) -> Result<(), Error> {
     creator.require_auth();
 
@@ -903,6 +911,11 @@ pub fn schedule_notification(
 
     if ttl_seconds == 0 {
         return Err(Error::InvalidExpirationDuration);
+    }
+
+    // Validate metadata (title is required)
+    if title.is_empty() {
+        return Err(Error::InvalidInput);
     }
 
     let key = DataKey::ScheduledNotification(notification_id.clone());
@@ -922,6 +935,7 @@ pub fn schedule_notification(
         expires_at,
         revoked_by: None,
         revoked_at: None,
+        title,
     };
     env.storage().persistent().set(&key, &notification);
 

@@ -5,6 +5,7 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 pub mod base {
     pub mod errors;
     pub mod events;
+    pub mod metadata_validation;
     pub mod preferences;
     pub mod types;
 }
@@ -333,14 +334,16 @@ impl AutoShareContract {
     /// Schedules a notification on-chain that expires after `ttl_seconds`.
     ///
     /// The notification becomes invalid once the ledger timestamp reaches
-    /// `created_at + ttl_seconds`. Emits a `NotificationScheduled` event.
+    /// `created_at + ttl_seconds`. Metadata (title) is validated for consistency.
+    /// Emits a `NotificationScheduled` event.
     pub fn schedule_notification(
         env: Env,
         notification_id: BytesN<32>,
         creator: Address,
         ttl_seconds: u64,
+        title: String,
     ) {
-        autoshare_logic::schedule_notification(env, notification_id, creator, ttl_seconds).unwrap();
+        autoshare_logic::schedule_notification(env, notification_id, creator, ttl_seconds, title).unwrap();
     }
 
     /// Returns the stored details for a scheduled notification.
