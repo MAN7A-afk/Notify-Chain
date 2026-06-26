@@ -2,10 +2,10 @@ use crate::base::errors::Error;
 use crate::base::events::{
     AdminTransferred, AuthorizationFailure, AutoshareCreated, AutoshareUpdated, ContractPaused,
     ContractUnpaused, GroupActivated, GroupDeactivated, NotificationCategory, NotificationExpired,
-    NotificationExtended, NotificationPriority, NotificationRevoked, NotificationScheduled,
-    ScheduledNotificationCancelled, Withdrawal,
+    NotificationExtended, NotificationLimitsConfigured, NotificationPriority, NotificationRevoked,
+    NotificationScheduled, ScheduledNotificationCancelled, Withdrawal,
 };
-use crate::base::types::{AutoShareDetails, GroupMember, PaymentHistory, ScheduledNotification};
+use crate::base::types::{AutoShareDetails, GroupMember, NotificationLimits, PaymentHistory, ScheduledNotification};
 use soroban_sdk::{contracttype, token, Address, BytesN, Env, String, Vec};
 
 /// Storage key layout (optimized):
@@ -41,6 +41,7 @@ pub enum DataKey {
     IsPaused,
     ScheduledNotification(BytesN<32>),
     NotificationRevokers(BytesN<32>),
+    NotificationLimits,
 }
 
 // ============================================================================
@@ -1167,3 +1168,91 @@ pub fn extend_notification_expiry(
     Ok(())
 }
 
+
+// ============================================================================
+// Notification Limits Configuration
+// ============================================================================
+
+/// Configures protocol-level notification limits. Only admin can call.
+/// Validates that min expiration is less than max expiration.
+/// Emits a `NotificationLimitsConfigured` event on success.
+pub fn configure_notification_limits(
+    env: Env,
+    admin: Address,
+    max_payload_size: u32,
+    max_expiration_seconds: u64,
+    min_expiration_seconds: u64,
+    max_batch_size: u32,
+) -> Result<(), Error> {
+    // Require authentication
+    admin.require_auth();
+
+    // Verify caller is admin
+    let current_admin = get_admin(env.clone()).ok_or(Error::Unauthorized)?;
+    if admin != current_admin {
+        AuthorizationFailure {
+            caller: admin,
+            category: NotificationCategory::Admin,
+            priority: NotificationPriority::Critical,
+            action: String::from_bytes(&env, b"configure_notification_limits"),
+        }
+        .publish(&env);
+        return Err(Error::Unauthorized);
+    }
+
+    // Validate that min <= max expiration
+    if min_expiration_seconds > max_expiration_seconds {
+        return Err(Error::InvalidExpirationDuration);
+    }
+
+    // Validate that batch size is at least 1
+    if max_batch_size == 0 {
+        return Err(Error::InvalidLimit);
+    }
+
+    // Validate that payload size is at least 1 byte
+    if max_payload_size == 0 {
+        return Err(Error::InvalidLimit);
+    }
+
+    let limits = NotificationLimits {
+        max_payload_size,
+        max_expiration_seconds,
+        min_expiration_seconds,
+        max_batch_size,
+    };
+
+    // Store in persistent storage
+    let key = DataKey::NotificationLimits;
+    env.storage().persistent().set(&key, &limits);
+
+    // Emit configuration event
+    NotificationLimitsConfigured {
+        admin,
+        category: NotificationCategory::Admin,
+        priority: NotificationPriority::Medium,
+        max_payload_size,
+        max_expiration_seconds,
+        min_expiration_seconds,
+        max_batch_size,
+    }
+    .publish(&env);
+
+    Ok(())
+}
+
+/// Retrieves the current notification limits.
+/// Returns default limits if none have been configured.
+pub fn get_notification_limits(env: Env) -> NotificationLimits {
+    let key = DataKey::NotificationLimits;
+    
+    env.storage()
+        .persistent()
+        .get::<DataKey, NotificationLimits>(&key)
+        .unwrap_or(NotificationLimits {
+            max_payload_size: 10_000,
+            max_expiration_seconds: 365 * 24 * 60 * 60, // 1 year
+            min_expiration_seconds: 60,                  // 1 minute
+            max_batch_size: 1000,
+        })
+}

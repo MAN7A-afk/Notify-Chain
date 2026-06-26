@@ -253,3 +253,19 @@ pub struct NotificationExtended {
     pub new_expires_at: u64,
 }
 
+/// Emitted when protocol-level notification limits are configured or updated.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone)]
+pub struct NotificationLimitsConfigured {
+    #[topic]
+    pub admin: Address,
+    #[topic]
+    pub category: NotificationCategory,
+    #[topic]
+    pub priority: NotificationPriority,
+    pub max_payload_size: u32,
+    pub max_expiration_seconds: u64,
+    pub min_expiration_seconds: u64,
+    pub max_batch_size: u32,
+}
+

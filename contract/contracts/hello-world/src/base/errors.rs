@@ -62,4 +62,6 @@ pub enum Error {
     NotAuthorizedToRevoke = 27,
     /// Triggered when attempting to revoke a notification that is already revoked.
     AlreadyRevoked = 28,
+    /// Triggered when an invalid limit configuration is provided.
+    InvalidLimit = 29,
 }

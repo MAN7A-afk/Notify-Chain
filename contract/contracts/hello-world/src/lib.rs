@@ -312,7 +312,6 @@ impl AutoShareContract {
     ) -> bool {
         preferences_logic::is_category_enabled(env, recipient, category)
     }
-}
 
     // ============================================================================
     // Scheduled Notification Management
@@ -389,6 +388,37 @@ impl AutoShareContract {
     ) {
         autoshare_logic::extend_notification_expiry(env, notification_id, caller, extension_seconds)
             .unwrap();
+    }
+
+    // ============================================================================
+    // Notification Limits Configuration
+    // ============================================================================
+
+    /// Sets protocol-level notification limits (admin only).
+    /// Configurable limits include maximum payload size, expiration periods, and batch sizes.
+    /// Emits a `NotificationLimitsConfigured` event on successful configuration.
+    pub fn configure_notification_limits(
+        env: Env,
+        admin: Address,
+        max_payload_size: u32,
+        max_expiration_seconds: u64,
+        min_expiration_seconds: u64,
+        max_batch_size: u32,
+    ) {
+        autoshare_logic::configure_notification_limits(
+            env,
+            admin,
+            max_payload_size,
+            max_expiration_seconds,
+            min_expiration_seconds,
+            max_batch_size,
+        )
+        .unwrap();
+    }
+
+    /// Returns the current notification limits.
+    pub fn get_notification_limits(env: Env) -> base::types::NotificationLimits {
+        autoshare_logic::get_notification_limits(env)
     }
 }
 

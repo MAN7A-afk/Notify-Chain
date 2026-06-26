@@ -54,3 +54,19 @@ pub struct PaymentHistory {
     pub amount_paid: i128,
     pub timestamp: u64,
 }
+
+/// Protocol-level configurable limits for notifications.
+/// Allows administrators to set boundaries on notification sizes,
+/// expiration periods, and batch operation sizes.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NotificationLimits {
+    /// Maximum size in bytes for a notification payload
+    pub max_payload_size: u32,
+    /// Maximum number of seconds a notification can be scheduled to expire
+    pub max_expiration_seconds: u64,
+    /// Minimum number of seconds before a notification can expire
+    pub min_expiration_seconds: u64,
+    /// Maximum number of notifications in a batch operation
+    pub max_batch_size: u32,
+}
