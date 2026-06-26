@@ -18,7 +18,6 @@ import {
   isTimestampValid,
 } from '../services/webhook-verifier';
 import { WebhookSecret, RateLimitConfig, ContractConfig } from '../types';
-import { WebhookSecret, RateLimitConfig } from '../types';
 import { RateLimiter } from './rate-limiter';
 import {
   getNotificationAnalyticsAggregator,
@@ -219,6 +218,9 @@ async function buildStatusResponse(options: EventsServerOptions): Promise<{
   return {
     timestamp: new Date().toISOString(),
     contracts: contractStatuses
+  };
+}
+
 async function fetchNetworkTipLedger(rpcUrl: string): Promise<{
   ledger: number | null;
   errorDetail?: string;
