@@ -15,6 +15,7 @@ import {
   extractKeyId,
   getSecretForKey,
   collectRawBody,
+  isTimestampValid,
 } from '../services/webhook-verifier';
 import { WebhookSecret, RateLimitConfig, ContractConfig } from '../types';
 import { WebhookSecret, RateLimitConfig } from '../types';
@@ -61,6 +62,8 @@ export interface EventsServerOptions {
   archiveStore?: ArchiveStore | null;
   /** Archive service for the admin /run endpoint (optional). */
   archiveService?: ArchiveService | null;
+  /** Maximum age of signed requests in seconds (default: 300 = 5 minutes). */
+  signatureExpirationSeconds?: number;
 }
 
 type ServiceStatus = 'ok' | 'error' | 'not_configured';
@@ -548,6 +551,20 @@ export function createEventsServer(options: EventsServerOptions): http.Server {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Unknown key-id' }));
           return;
+        }
+
+        // Validate request timestamp to prevent replay attacks
+        const timestampHeader = req.headers['x-webhook-timestamp'] ?? req.headers['X-Webhook-Timestamp'];
+        const maxAgeSeconds = options.signatureExpirationSeconds ?? 300; // Default: 5 minutes
+
+        if (timestampHeader) {
+          const timestamp = Array.isArray(timestampHeader) ? timestampHeader[0] : timestampHeader;
+          if (!isTimestampValid(timestamp, maxAgeSeconds)) {
+            logger.warn('Webhook request signature expired', { requestId, correlationId, keyId, timestamp });
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Request signature expired' }));
+            return;
+          }
         }
 
         if (!verifySignature(rawBody, signatureHeader, secret)) {
