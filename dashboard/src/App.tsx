@@ -1,9 +1,45 @@
+import { useState } from 'react';
 import { EventExplorerPage } from './pages/EventExplorerPage';
+import { NotificationTimelineView } from './components/NotificationTimelineView';
+import { ActivityFeed } from './components/ActivityFeed';
+
+type Tab = 'explorer' | 'timeline' | 'activity';
 
 export function App() {
+  const [tab, setTab] = useState<Tab>('explorer');
+
   return (
     <div className="app">
-      <EventExplorerPage />
+      <nav className="app-tabs" role="tablist" aria-label="Main navigation">
+        <button
+          role="tab"
+          aria-selected={tab === 'explorer'}
+          className={`app-tabs__btn${tab === 'explorer' ? ' app-tabs__btn--active' : ''}`}
+          onClick={() => setTab('explorer')}
+        >
+          Event Explorer
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === 'timeline'}
+          className={`app-tabs__btn${tab === 'timeline' ? ' app-tabs__btn--active' : ''}`}
+          onClick={() => setTab('timeline')}
+        >
+          Delivery Timeline
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === 'activity'}
+          className={`app-tabs__btn${tab === 'activity' ? ' app-tabs__btn--active' : ''}`}
+          onClick={() => setTab('activity')}
+        >
+          Activity Feed
+        </button>
+      </nav>
+
+      {tab === 'explorer' && <EventExplorerPage />}
+      {tab === 'timeline' && <NotificationTimelineView />}
+      {tab === 'activity' && <ActivityFeed />}
     </div>
   );
 }

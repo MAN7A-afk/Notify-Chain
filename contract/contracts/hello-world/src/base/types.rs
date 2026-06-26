@@ -21,6 +21,32 @@ pub struct GroupMember {
     pub percentage: u32,
 }
 
+/// A notification stored on-chain with a bounded lifetime.
+///
+/// The notification is considered **expired** — and therefore invalid for any
+/// further interaction — once the ledger timestamp reaches `expires_at`.
+///
+/// A notification can also be **revoked** before its expiration by an authorized
+/// sender. Once revoked, the notification becomes inactive and cannot be
+/// interacted with. Revoked notifications maintain their state for auditing
+/// and transparency.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScheduledNotification {
+    pub id: BytesN<32>,
+    pub creator: Address,
+    /// Ledger timestamp (seconds) at which the notification was scheduled.
+    pub created_at: u64,
+    /// Ledger timestamp (seconds) at or after which the notification is expired.
+    pub expires_at: u64,
+    /// Address that revoked the notification, or None if not revoked.
+    pub revoked_by: Option<Address>,
+    /// Ledger timestamp (seconds) at which the notification was revoked, if revoked.
+    pub revoked_at: Option<u64>,
+    /// Notification title (required metadata for off-chain processing)
+    pub title: String,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaymentHistory {
@@ -29,4 +55,20 @@ pub struct PaymentHistory {
     pub usages_purchased: u32,
     pub amount_paid: i128,
     pub timestamp: u64,
+}
+
+/// Protocol-level configurable limits for notifications.
+/// Allows administrators to set boundaries on notification sizes,
+/// expiration periods, and batch operation sizes.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NotificationLimits {
+    /// Maximum size in bytes for a notification payload
+    pub max_payload_size: u32,
+    /// Maximum number of seconds a notification can be scheduled to expire
+    pub max_expiration_seconds: u64,
+    /// Minimum number of seconds before a notification can expire
+    pub min_expiration_seconds: u64,
+    /// Maximum number of notifications in a batch operation
+    pub max_batch_size: u32,
 }
