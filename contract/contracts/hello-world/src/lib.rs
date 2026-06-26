@@ -54,6 +54,21 @@ impl AutoShareContract {
         autoshare_logic::get_paused_status(&env)
     }
 
+    /// Registers a notification category in the on-chain registry.
+    pub fn register_category(env: Env, admin: Address, category: base::events::NotificationCategory) {
+        autoshare_logic::register_category(env, admin, category).unwrap();
+    }
+
+    /// Returns all registered notification categories.
+    pub fn get_registered_categories(env: Env) -> soroban_sdk::Vec<base::events::NotificationCategory> {
+        autoshare_logic::get_registered_categories(env)
+    }
+
+    /// Returns whether a notification category is registered.
+    pub fn is_category_registered(env: Env, category: base::events::NotificationCategory) -> bool {
+        autoshare_logic::is_category_registered(env, category)
+    }
+
     // ============================================================================
     // AutoShare Group Management
     // ============================================================================
@@ -278,4 +293,7 @@ mod tests {
 
     #[path = "../tests/notification_test.rs"]
     mod notification_test;
+
+    #[path = "../tests/category_registry_test.rs"]
+    mod category_registry_test;
 }

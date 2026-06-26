@@ -2,7 +2,7 @@ use crate::base::errors::Error;
 use crate::base::events::{
     AdminTransferred, AuthorizationFailure, AutoshareCreated, AutoshareUpdated, ContractPaused,
     ContractUnpaused, GroupActivated, GroupDeactivated, NotificationCategory, NotificationPriority,
-    ScheduledNotificationCancelled, Withdrawal,
+    ScheduledNotificationCancelled, Withdrawal, CategoryRegistered,
 };
 use crate::base::types::{AutoShareDetails, GroupMember, PaymentHistory};
 use soroban_sdk::{contracttype, token, Address, BytesN, Env, String, Vec};
@@ -23,6 +23,7 @@ pub enum DataKey {
     GroupPaymentHistory(BytesN<32>),
     GroupMembers(BytesN<32>),
     IsPaused,
+    RegisteredCategories,
 }
 
 pub fn create_autoshare(
@@ -255,7 +256,64 @@ pub fn initialize_admin(env: Env, admin: Address) {
         let tokens_key = DataKey::SupportedTokens;
         let empty_tokens: Vec<Address> = Vec::new(&env);
         env.storage().persistent().set(&tokens_key, &empty_tokens);
+
+        seed_default_categories(&env);
     }
+}
+
+fn seed_default_categories(env: &Env) {
+    let key = DataKey::RegisteredCategories;
+    if env.storage().persistent().has(&key) {
+        return;
+    }
+
+    let categories: Vec<NotificationCategory> = Vec::new(env);
+    env.storage().persistent().set(&key, &categories);
+}
+
+pub fn get_registered_categories(env: Env) -> Vec<NotificationCategory> {
+    let key = DataKey::RegisteredCategories;
+    env.storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(Vec::new(&env))
+}
+
+pub fn is_category_registered(env: Env, category: NotificationCategory) -> bool {
+    let categories = get_registered_categories(env.clone());
+    for i in 0..categories.len() {
+        if categories.get(i).unwrap() == category {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn register_category(env: Env, admin: Address, category: NotificationCategory) -> Result<(), Error> {
+    admin.require_auth();
+    require_admin(&env, &admin)?;
+
+    if is_category_registered(env.clone(), category) {
+        return Err(Error::AlreadyExists);
+    }
+
+    let key = DataKey::RegisteredCategories;
+    let mut categories: Vec<NotificationCategory> = env
+        .storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(Vec::new(&env));
+    categories.push_back(category);
+    env.storage().persistent().set(&key, &categories);
+
+    CategoryRegistered {
+        admin: admin.clone(),
+        category,
+        priority: NotificationPriority::Medium,
+    }
+    .publish(&env);
+
+    Ok(())
 }
 
 fn publish_authorization_failure(env: &Env, caller: &Address, action: &str) {

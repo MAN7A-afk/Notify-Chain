@@ -68,6 +68,18 @@ pub struct AutoshareCreated {
     pub id: BytesN<32>,
 }
 
+/// Emitted when a notification category is registered on-chain.
+#[contractevent]
+#[derive(Clone)]
+pub struct CategoryRegistered {
+    #[topic]
+    pub admin: Address,
+    #[topic]
+    pub category: NotificationCategory,
+    #[topic]
+    pub priority: NotificationPriority,
+}
+
 /// Emitted when the contract is paused by the admin.
 #[contractevent]
 #[derive(Clone)]
