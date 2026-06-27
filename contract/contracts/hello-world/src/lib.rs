@@ -580,6 +580,8 @@ mod tests {
     #[path = "../tests/notification_test.rs"]
     mod notification_test;
 
+    #[path = "../tests/notification_validation_test.rs"]
+    mod notification_validation_test;
     #[path = "../tests/category_registry_test.rs"]
     mod category_registry_test;
 
