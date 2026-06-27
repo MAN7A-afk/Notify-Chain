@@ -387,6 +387,58 @@ impl AutoShareContract {
         autoshare_logic::expire_notification(env, notification_id).unwrap();
     }
 
+    // ============================================================================
+    // Batch Notification Creation
+    // ============================================================================
+
+    /// Creates multiple scheduled notifications in a single transaction.
+    ///
+    /// `ids` and `ttl_seconds` must have the same length, must not be empty, and
+    /// must not exceed 50 entries. Emits one `NotificationScheduled` event per
+    /// notification plus a single `BatchNotificationsCreated` summary event.
+    pub fn batch_schedule_notifications(
+        env: Env,
+        ids: Vec<BytesN<32>>,
+        creator: Address,
+        ttl_seconds: Vec<u64>,
+        titles: Vec<String>,
+    ) {
+        autoshare_logic::batch_schedule_notifications(env, ids, creator, ttl_seconds, titles)
+            .unwrap();
+    }
+
+    // ============================================================================
+    // Audit Logging
+    // ============================================================================
+
+    /// Returns the full, immutable audit log in append order.
+    pub fn get_audit_log(env: Env) -> Vec<base::types::AuditRecord> {
+        autoshare_logic::get_audit_log(env)
+    }
+
+    /// Returns all audit records for a specific notification identifier.
+    pub fn get_notification_audit(
+        env: Env,
+        notification_id: BytesN<32>,
+    ) -> Vec<base::types::AuditRecord> {
+        autoshare_logic::get_audit_records_for_notification(env, notification_id)
+    }
+
+    /// Records a delivery attempt for a notification in the audit log.
+    pub fn record_delivery_attempt(env: Env, notification_id: BytesN<32>, actor: Address) {
+        autoshare_logic::record_delivery_attempt(env, notification_id, actor).unwrap();
+    }
+
+    /// Records a delivery failure for a notification in the audit log.
+    pub fn record_delivery_failure(env: Env, notification_id: BytesN<32>, actor: Address) {
+        autoshare_logic::record_delivery_failure(env, notification_id, actor).unwrap();
+    }
+
+    /// Records that the recipient acknowledged a notification.
+    pub fn record_acknowledgment(env: Env, notification_id: BytesN<32>, actor: Address) {
+        autoshare_logic::record_acknowledgment(env, notification_id, actor).unwrap();
+    }
+
     /// Revokes a scheduled notification, preventing any further interaction with it.
     ///
     /// Only the notification creator or the contract admin can revoke a notification.
@@ -491,6 +543,15 @@ mod tests {
 
     #[path = "../tests/expiration_test.rs"]
     mod expiration_test;
+
+    #[path = "../tests/batch_notification_test.rs"]
+    mod batch_notification_test;
+
+    #[path = "../tests/audit_log_test.rs"]
+    mod audit_log_test;
+
+    #[path = "../tests/payload_validation_test.rs"]
+    mod payload_validation_test;
 
     #[path = "../tests/revocation_test.rs"]
     mod revocation_test;
