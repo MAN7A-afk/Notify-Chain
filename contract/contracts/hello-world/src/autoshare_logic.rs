@@ -1317,7 +1317,6 @@ pub fn revoke_notification(
         revoked_by: caller,
         category: NotificationCategory::Notification,
         priority: NotificationPriority::High,
-        revoked_at,
     }
     .publish(&env);
 
@@ -1367,7 +1366,6 @@ fn append_audit_record(
         category: NotificationCategory::Notification,
         seq,
         actor,
-        timestamp,
     }
     .publish(env);
 }
