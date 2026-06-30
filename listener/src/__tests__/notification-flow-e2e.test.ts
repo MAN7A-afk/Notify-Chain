@@ -27,6 +27,7 @@ import { DiscordNotificationService } from '../services/discord-notification';
 import { BackpressureController } from '../services/backpressure-controller';
 import { BackpressureMonitor } from '../services/backpressure-monitor';
 import { NotificationFixtureBuilder } from '../test-utils/notification-fixture-builder';
+import { resetWorkerManager } from '../services/worker-manager';
 import { NotificationStatus, NotificationType } from '../types/scheduled-notification';
 
 jest.mock('../utils/logger', () => ({
@@ -118,6 +119,7 @@ describe('1. Notification creation', () => {
   });
 
   beforeEach(async () => {
+    resetWorkerManager();
     jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
@@ -165,6 +167,21 @@ describe('1. Notification creation', () => {
       })
     ).rejects.toThrow('targetRecipient is required');
   });
+  afterEach(async () => {
+    await scheduler.stop();
+  });
+
+  async function waitForSchedulerPolls(ms = 300): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function futureExecuteAt(offsetMs = 10000): Date {
+    return new Date(Date.now() + offsetMs);
+  }
+
+  describe('Complete notification lifecycle', () => {
+    it('should create, process, and deliver a notification', async () => {
+      const executeAt = futureExecuteAt(50);
 
   it('rejects a notification with an invalid payload', async () => {
     await expect(
@@ -227,6 +244,8 @@ describe('1. Notification creation', () => {
     const stats = await repository.getStats();
     expect(stats.pending).toBe(1);
   });
+      await scheduler.start();
+      await waitForSchedulerPolls(400);
 
   it('rejects a duplicate idempotency key used with a different payload', async () => {
     const executeAt = new Date('2026-06-24T13:00:00.000Z');
@@ -308,6 +327,26 @@ describe('2. Delivery workflows', () => {
       notificationType: NotificationType.DISCORD,
       targetRecipient: NotificationFixtureBuilder.constants.webhookUrl,
       executeAt: new Date('2026-06-24T12:00:02.000Z'),
+    it('should log execution attempts for audit trail', async () => {
+      const id = await api.scheduleNotification({
+        payload: { message: 'Test notification' },
+        notificationType: NotificationType.DISCORD,
+        targetRecipient: 'https://discord.com/webhook',
+        executeAt: futureExecuteAt(50),
+      });
+
+      await scheduler.start();
+      await waitForSchedulerPolls(400);
+
+      const logs = await db.all(
+        'SELECT * FROM notification_execution_log WHERE scheduled_notification_id = ?',
+        [id]
+      );
+
+      expect(logs).toHaveLength(1);
+      expect(logs[0].status).toBe('SUCCESS');
+      expect(logs[0].execution_attempt).toBe(1);
+      expect(logs[0].scheduled_notification_id).toBe(id);
     });
 
     await scheduler.start();
@@ -325,6 +364,11 @@ describe('2. Delivery workflows', () => {
       targetRecipient: NotificationFixtureBuilder.constants.webhookUrl,
       executeAt: new Date('2026-06-24T12:10:00.000Z'), // 10 min future
     });
+  describe('Idempotency handling', () => {
+    it('should return cached response for duplicate requests with same idempotency key', async () => {
+      const executeAt = futureExecuteAt();
+      const payload = { message: 'Unique message' };
+      const idempotencyKey = 'test-idempotency-key-1';
 
     await scheduler.start();
     await jest.advanceTimersByTimeAsync(250);
@@ -345,6 +389,9 @@ describe('2. Delivery workflows', () => {
     await scheduler.start();
     await jest.advanceTimersByTimeAsync(200);
     expect((await repository.getById(id))!.status).toBe(NotificationStatus.PENDING);
+    it('should reject duplicate requests with different payload', async () => {
+      const executeAt = futureExecuteAt();
+      const idempotencyKey = 'test-idempotency-key-2';
 
     jest.setSystemTime(new Date('2026-06-24T12:05:01.000Z'));
     await jest.advanceTimersByTimeAsync(400);
@@ -363,6 +410,9 @@ describe('2. Delivery workflows', () => {
 
     await scheduler.start();
     await jest.advanceTimersByTimeAsync(250);
+    it('should clean up expired idempotency keys', async () => {
+      const executeAt = futureExecuteAt();
+      const idempotencyKey = 'test-idempotency-key-3';
 
     const logs = await db.all(
       'SELECT * FROM notification_execution_log WHERE scheduled_notification_id = ?',
@@ -430,6 +480,17 @@ describe('3. Retry scenarios', () => {
   beforeAll(async () => {
     db = await setupDb();
     repository = new ScheduledNotificationRepository(db);
+      await db.run(
+        'UPDATE idempotency_keys SET expires_at = ? WHERE idempotency_key = ?',
+        [new Date(Date.now() - 1000).toISOString(), idempotencyKey]
+      );
+
+      const cleanupCount = await idempotencyService.cleanupExpiredKeys();
+      expect(cleanupCount).toBeGreaterThanOrEqual(1);
+
+      stats = await idempotencyRepo.getStats();
+      expect(stats.expired).toBeGreaterThanOrEqual(0);
+    });
   });
 
   afterAll(async () => {
@@ -534,6 +595,11 @@ describe('3. Retry scenarios', () => {
 
     expect(sendMock).not.toHaveBeenCalled();
   });
+  describe('Integration tests', () => {
+    it('should handle high-volume notification creation with idempotency', async () => {
+      const executeAt = futureExecuteAt();
+      const payload = { message: 'Batch test' };
+      const idempotencyKey = 'batch-idempotency-1';
 
   it('prevents concurrent duplicate processing via distributed lock', async () => {
     const id = await insertRetryable(repository, db, 1);
@@ -810,6 +876,8 @@ describe('5. Backpressure and idempotency integration', () => {
   });
 
   afterEach(() => jest.useRealTimers());
+    it('should maintain audit trail through complete lifecycle', async () => {
+      const executeAt = futureExecuteAt(50);
 
   it('activates backpressure when queue exceeds saturation threshold', () => {
     const isActive = backpressureController.checkAndApplyBackpressure(101);
@@ -820,6 +888,8 @@ describe('5. Backpressure and idempotency integration', () => {
     expect(metrics.isActive).toBe(true);
     expect(metrics.targetThroughputPerSec).toBe(10);
   });
+      await scheduler.start();
+      await waitForSchedulerPolls(400);
 
   it('calculates a positive processing delay under backpressure', () => {
     backpressureController.checkAndApplyBackpressure(101);
